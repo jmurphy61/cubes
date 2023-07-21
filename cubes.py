@@ -2,8 +2,9 @@ import os
 import numpy as np
 import argparse
 from time import perf_counter
+from typing import Generator, Union
 
-def all_rotations(polycube):
+def all_rotations(polycube: np.array) -> Generator[np.array]:
     """
     Calculates all rotations of a polycube.
   
@@ -18,11 +19,11 @@ def all_rotations(polycube):
     generator(np.array): Yields new rotations of this cube about all axes
   
     """
-    def single_axis_rotation(polycube, axes):
+    def single_axis_rotation(polycube: np.array, axes: tuple) -> Generator[np.array]:
         """Yield four rotations of the given 3d array in the plane spanned by the given axes.
         For example, a rotation in axes (0,1) is a rotation around axis 2"""
         for i in range(4):
-             yield np.rot90(polycube, i, axes)
+            yield np.rot90(polycube, i, axes)
 
     # 4 rotations about axis 0
     yield from single_axis_rotation(polycube, (1,2))
@@ -38,7 +39,7 @@ def all_rotations(polycube):
     yield from single_axis_rotation(np.rot90(polycube, axes=(0,1)), (0,2))
     yield from single_axis_rotation(np.rot90(polycube, -1, axes=(0,1)), (0,2))
 
-def crop_cube(cube):
+def crop_cube(cube: np.array) -> np.array:
     """
     Crops an np.array to have no all-zero padding around the edge.
 
@@ -60,12 +61,12 @@ def crop_cube(cube):
         cube = np.swapaxes(cube, 0, i)  # send i-th axis to its original position
     return cube
 
-def expand_cube(cube):
+def expand_cube(cube: np.array) -> Generator[np.array]:
     """
     Expands a polycube by adding single blocks at all valid locations.
   
     Calculates all valid new positions of a polycube by shifting the existing cube +1 and -1 in each dimension.
-    New valid cubes are returned via a generator function, in case they are not all needed.
+    New valid cubes are retur ned via a generator function, in case they are not all needed.
   
     Parameters:
     cube (np.array): 3D Numpy byte array where 1 values indicate polycube positions
@@ -74,8 +75,8 @@ def expand_cube(cube):
     generator(np.array): Yields new polycubes that are extensions of cube
   
     """
-    cube = np.pad(cube, 1, 'constant', constant_values=0)
-    output_cube = np.array(cube)
+    cube: np.array = np.pad(cube, 1, 'constant', constant_values=0)
+    output_cube: np.array = np.array(cube)
 
     xs,ys,zs = cube.nonzero()
     output_cube[xs+1,ys,zs] = 1
@@ -85,14 +86,14 @@ def expand_cube(cube):
     output_cube[xs,ys,zs+1] = 1
     output_cube[xs,ys,zs-1] = 1
 
-    exp = (output_cube ^ cube).nonzero()
+    exp: tuple[np.ndarray] = (output_cube ^ cube).nonzero()
 
     for (x,y,z) in zip(exp[0], exp[1], exp[2]):
         new_cube = np.array(cube)
         new_cube[x,y,z] = 1
         yield crop_cube(new_cube)
 
-def generate_polycubes(n, use_cache=False):
+def generate_polycubes(n: int, use_cache: bool=False) -> list[np.array]:
     """
     Generates all polycubes of size n
   
@@ -123,10 +124,10 @@ def generate_polycubes(n, use_cache=False):
         return polycubes
 
     # Empty list of new n-polycubes
-    polycubes = []
-    polycubes_rle = set()
+    polycubes: list[np.array]= []
+    polycubes_rle: set[np.array] = set()
 
-    base_cubes = generate_polycubes(n-1, use_cache)
+    base_cubes: list[np.array] = generate_polycubes(n-1, use_cache)
 
     for idx, base_cube in enumerate(base_cubes):
         # Iterate over possible expansion positions
@@ -147,7 +148,7 @@ def generate_polycubes(n, use_cache=False):
 
     return polycubes
 
-def rle(polycube):
+def rle(polycube: np.array) -> tuple[int]:
     """
     Computes a simple run-length encoding of a given polycube. This function allows cubes to be more quickly compared via hashing.
   
@@ -164,10 +165,10 @@ def rle(polycube):
     tuple(int): Run length encoded polycube in the form (X, Y, Z, a, b, c, ...)
 
     """
-    r = []
+    r: list[int] = []
     r.extend(polycube.shape)
-    current = None
-    val = 0
+    current: Union[int, None] = None
+    val: int = 0
     for x in polycube.flat:
         if current is None:
             current = x
@@ -184,7 +185,7 @@ def rle(polycube):
 
     return tuple(r)
 
-def cube_exists_rle(polycube, polycubes_rle):
+def cube_exists_rle(polycube: np.array, polycubes_rle) -> bool:
     """
     Determines if a polycube has already been seen.
   
@@ -205,7 +206,7 @@ def cube_exists_rle(polycube, polycubes_rle):
     return False
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
                     prog='Polycube Generator',
                     description='Generates all polycubes (combinations of cubes) of size n.')
 
@@ -215,18 +216,18 @@ if __name__ == "__main__":
     #Requires python >=3.9
     parser.add_argument('--cache', action=argparse.BooleanOptionalAction)
 
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
    
-    n = args.n
-    use_cache = args.cache if args.cache is not None else True
+    n: int = args.n
+    use_cache: bool = args.cache if args.cache is not None else True
 
     # Start the timer
-    t1_start = perf_counter()
+    t1_start: float = perf_counter()
 
-    all_cubes = list(generate_polycubes(n, use_cache=use_cache))
+    all_cubes: list[np.array] = list(generate_polycubes(n, use_cache=use_cache))
 
     # Stop the timer
-    t1_stop = perf_counter()
+    t1_stop: float = perf_counter()
 
     print (f"Found {len(all_cubes)} unique polycubes")
     print (f"Elapsed time: {round(t1_stop - t1_start,3)}s")
